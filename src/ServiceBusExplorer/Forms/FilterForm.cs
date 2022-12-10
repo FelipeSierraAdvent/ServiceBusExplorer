@@ -21,17 +21,15 @@
 
 #region Using Directives
 
+using ServiceBusExplorer.Controls;
+using ServiceBusExplorer.Utilities.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using ServiceBusExplorer.Controls;
-using ServiceBusExplorer.Helpers;
-using ServiceBusExplorer.Utilities.Helpers;
 
 #endregion
 
@@ -47,8 +45,8 @@ namespace ServiceBusExplorer.Forms
         private const string FilterExpressionLabelFormat = "{0} Filter Expression:";
         private const string StartsWithFormat = "Startswith({0}, '{1}') Eq true";
         private const string MessageCountFormat = "MessageCount {0} {1}";
-        private const string TimeFilterFormat = "{0} {1} '{2}'";
-        
+        private const string FilterFormat = "{0} {1} '{2}'";
+
         //***************************
         // Constants
         //***************************
@@ -65,7 +63,7 @@ namespace ServiceBusExplorer.Forms
         private const string TimeFilterOperator = "Operator";
         private const string TimeFilterValue = "Value";
 
-         //***************************
+        //***************************
         // RegeEx Patterns & Groups
         //***************************
         private const string AndPattern = @"\s+and\s+";
@@ -78,12 +76,16 @@ namespace ServiceBusExplorer.Forms
         #region Private Instance Fields
         private readonly string entity;
         private readonly BindingSource bindingSource = new BindingSource();
+        private readonly BindingSource textBindingSource = new BindingSource();
         #endregion
 
         #region Private Static Fields
-        private static readonly List<string> properties = new List<string> { "CreatedAt", "AccessedAt", "UpdatedAt"};
+        private static readonly List<string> properties = new List<string> { "CreatedAt", "AccessedAt", "UpdatedAt" };
+        private static readonly List<string> textProps = new List<string> { "CreatedAt", "AccessedAt", "UpdatedAt" };
         private static readonly List<string> operators = new List<string> { "Ge", "Gt", "Le", "Lt", "Eq", "Ne" };
+        private static readonly List<string> textOp = new List<string> { "Equals", "Contains" };
         private static readonly List<TimeFilterInfo> timeFilters = new List<TimeFilterInfo>();
+        private static readonly List<TextFilterInfo> textFilters = new List<TextFilterInfo>();
         #endregion
 
         #region Public Constructor
@@ -234,15 +236,17 @@ namespace ServiceBusExplorer.Forms
                     txtFilterExpression.TextChanged += txtFilterExpression_TextChanged;
                 }
 
-                // Initialize filters;
+                // Initialize filters
                 ReadFilterExpression();
                 bindingSource.DataSource = timeFilters;
+                textBindingSource.DataSource = textFilters;
                 TimeFilterInfo.OnChange += WriteFilterExpression;
 
-                // Initialize the DataGridView.
+                // Initialize the DataGridViews.
                 timeFilterDataGridView.AutoGenerateColumns = false;
-                timeFilterDataGridView.AutoSize = true;
+                textFilterDataGridView.AutoGenerateColumns = false;
                 timeFilterDataGridView.DataSource = bindingSource;
+                textFilterDataGridView.DataSource = textBindingSource;
                 timeFilterDataGridView.ForeColor = SystemColors.WindowText;
 
                 // Create the Property column
@@ -256,6 +260,17 @@ namespace ServiceBusExplorer.Forms
                 };
                 timeFilterDataGridView.Columns.Add(propertyColumn);
 
+                textFilterDataGridView.Columns.Add(
+                    new DataGridViewComboBoxColumn
+                    {
+                        DataSource = textProps,
+                        DataPropertyName = TimeFilterProperty,
+                        Name = TimeFilterProperty,
+                        Width = 104,
+                        FlatStyle = FlatStyle.Flat
+                    }
+                );
+
                 // Create the Operator column
                 var operatorColumn = new DataGridViewComboBoxColumn
                 {
@@ -267,30 +282,55 @@ namespace ServiceBusExplorer.Forms
                 };
                 timeFilterDataGridView.Columns.Add(operatorColumn);
 
-                // Create the Value column
-                var valueColumn = new DataGridViewDateTimePickerColumn
+                textFilterDataGridView.Columns.Add(
+                    new DataGridViewComboBoxColumn
+                    {
+                        DataSource = textOp,
+                        DataPropertyName = TimeFilterOperator,
+                        Name = TimeFilterOperator,
+                        Width = 72,
+                        FlatStyle = FlatStyle.Flat
+                    });
+
+                // Create the Value column            
+                timeFilterDataGridView.Columns.Add(new DataGridViewDateTimePickerColumn
                 {
                     DataPropertyName = TimeFilterValue,
                     Name = TimeFilterValue,
                     Width = 136
-                };
-                timeFilterDataGridView.Columns.Add(valueColumn);
+                });
+
+                textFilterDataGridView.Columns.Add(new DataGridViewTextBoxColumn
+                {
+                    DataPropertyName = TimeFilterValue,
+                    Name = TimeFilterValue,
+                    Width = 136,
+                    Visible = true,
+
+                });
+
 
                 // Set Grid style
                 timeFilterDataGridView.EnableHeadersVisualStyles = false;
+                textFilterDataGridView.EnableHeadersVisualStyles = false;
 
                 // Set the selection background color for all the cells.
                 timeFilterDataGridView.DefaultCellStyle.SelectionBackColor = Color.FromArgb(92, 125, 150);
                 timeFilterDataGridView.DefaultCellStyle.SelectionForeColor = SystemColors.Window;
+                textFilterDataGridView.DefaultCellStyle.SelectionBackColor = Color.FromArgb(92, 125, 150);
+                textFilterDataGridView.DefaultCellStyle.SelectionForeColor = SystemColors.Window;
 
                 // Set RowHeadersDefaultCellStyle.SelectionBackColor so that its default 
                 // value won't override DataGridView.DefaultCellStyle.SelectionBackColor.
                 timeFilterDataGridView.RowHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(153, 180, 209);
+                textFilterDataGridView.RowHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(153, 180, 209);
 
                 // Set the background color for all rows and for alternating rows.  
                 // The value for alternating rows overrides the value for all rows. 
                 timeFilterDataGridView.RowsDefaultCellStyle.BackColor = SystemColors.Window;
                 timeFilterDataGridView.RowsDefaultCellStyle.ForeColor = SystemColors.ControlText;
+                textFilterDataGridView.RowsDefaultCellStyle.BackColor = SystemColors.Window;
+                textFilterDataGridView.RowsDefaultCellStyle.ForeColor = SystemColors.ControlText;
                 //filtersDataGridView.AlternatingRowsDefaultCellStyle.BackColor = Color.White;
                 //filtersDataGridView.AlternatingRowsDefaultCellStyle.ForeColor = SystemColors.ControlText;
 
@@ -300,6 +340,11 @@ namespace ServiceBusExplorer.Forms
                 timeFilterDataGridView.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(215, 228, 242);
                 timeFilterDataGridView.ColumnHeadersDefaultCellStyle.ForeColor = SystemColors.ControlText;
 
+                textFilterDataGridView.RowHeadersDefaultCellStyle.BackColor = Color.FromArgb(215, 228, 242);
+                textFilterDataGridView.RowHeadersDefaultCellStyle.ForeColor = SystemColors.ControlText;
+                textFilterDataGridView.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(215, 228, 242);
+                textFilterDataGridView.ColumnHeadersDefaultCellStyle.ForeColor = SystemColors.ControlText;
+
                 if (String.Compare(entity, Subscription, StringComparison.OrdinalIgnoreCase) != 0)
                 {
                     return;
@@ -308,8 +353,10 @@ namespace ServiceBusExplorer.Forms
                 txtStartsWith.Visible = false;
                 lblTimeFilters.Location = lblMessageCount.Location;
                 timeFilterDataGridView.Location = cboMessageCountOperator.Location;
-                timeFilterDataGridView.Size = new Size(timeFilterDataGridView.Size.Width, 216);
+                timeFilterDataGridView.Size = textFilterDataGridView.Size = new Size(timeFilterDataGridView.Size.Width, 87);
+                textFilterDataGridView.Location = new Point(timeFilterDataGridView.Location.X, timeFilterDataGridView.Location.Y + timeFilterDataGridView.Size.Height + 40);
                 lblMessageCount.Location = lblStartsWith.Location;
+                lblTextFilters.Location = new Point(textFilterDataGridView.Location.X, textFilterDataGridView.Location.Y - 15);
                 cboMessageCountOperator.Location = txtStartsWith.Location;
                 txtMessageCount.Location = new Point(txtMessageCount.Location.X, txtStartsWith.Location.Y);
             }
@@ -332,6 +379,16 @@ namespace ServiceBusExplorer.Forms
                 }
                 timeFilterDataGridView.Columns[2].Width = width;
             }
+
+            if (textFilterDataGridView.Columns.Count == 3)
+            {
+                var width = textFilterDataGridView.Width - textFilterDataGridView.Columns[0].Width -
+                            textFilterDataGridView.Columns[1].Width - textFilterDataGridView.RowHeadersWidth;
+                var verticalScrollbar = textFilterDataGridView.Controls.OfType<VScrollBar>().First();
+                if (verticalScrollbar != null && verticalScrollbar.Visible)
+                    width -= verticalScrollbar.Width;
+                textFilterDataGridView.Columns[2].Width = width;
+            }
         }
 
         private void ReadFilterExpression()
@@ -344,13 +401,16 @@ namespace ServiceBusExplorer.Forms
                 cboMessageCountOperator.TextChanged -= cboMessageCountOperator_TextChanged;
                 timeFilterDataGridView.RowsAdded -= filtersDataGridView_RowsAdded;
                 timeFilterDataGridView.RowsRemoved -= filtersDataGridView_RowsRemoved;
+                textFilterDataGridView.RowsAdded -= filtersDataGridView_RowsAdded;
+                textFilterDataGridView.RowsRemoved -= filtersDataGridView_RowsRemoved;
 
                 // Initialize control values
                 txtStartsWith.Text = string.Empty;
-                txtMessageCount.Text = string.Empty;              
+                txtMessageCount.Text = string.Empty;
                 cboMessageCountOperator.SelectedIndex = 0;
                 //timeFilterDataGridView.Rows.Clear();
                 timeFilters.Clear();
+                textFilters.Clear();
 
                 if (string.IsNullOrWhiteSpace(FilterExpression))
                 {
@@ -410,11 +470,11 @@ namespace ServiceBusExplorer.Forms
                             !string.IsNullOrWhiteSpace(timeFilterValue))
                         {
                             timeFilters.Add(new TimeFilterInfo
-                                {
-                                    Property = timeFilterProperty,
-                                    Operator = timeFilterOperator,
-                                    Value = DateTime.Parse(timeFilterValue)
-                                });
+                            {
+                                Property = timeFilterProperty,
+                                Operator = timeFilterOperator,
+                                Value = DateTime.Parse(timeFilterValue)
+                            });
                         }
                     }
                 }
@@ -426,8 +486,11 @@ namespace ServiceBusExplorer.Forms
                 txtMessageCount.TextChanged += txtMessageCount_TextChanged;
                 cboMessageCountOperator.TextChanged += cboMessageCountOperator_TextChanged;
                 bindingSource.ResetBindings(true);
+                textBindingSource.ResetBindings(true);
                 timeFilterDataGridView.RowsAdded += filtersDataGridView_RowsAdded;
                 timeFilterDataGridView.RowsRemoved += filtersDataGridView_RowsRemoved;
+                textFilterDataGridView.RowsAdded += filtersDataGridView_RowsAdded;
+                textFilterDataGridView.RowsRemoved += filtersDataGridView_RowsRemoved;
             }
         }
 
@@ -449,6 +512,7 @@ namespace ServiceBusExplorer.Forms
                 builder.AppendFormat(MessageCountFormat, cboMessageCountOperator.Text, txtMessageCount.IntegerValue);
                 appendAnd = true;
             }
+
             foreach (var timeFilter in timeFilters)
             {
                 if (string.IsNullOrWhiteSpace(timeFilter.Property) ||
@@ -458,15 +522,37 @@ namespace ServiceBusExplorer.Forms
                     continue;
                 }
                 if (appendAnd)
-                {
                     builder.Append(AndOperator);
-                }
-                builder.AppendFormat(TimeFilterFormat,
+
+                if(string.IsNullOrEmpty(builder.ToString()))
+                    builder.Insert(0, "Time: ");
+
+                builder.AppendFormat(FilterFormat,
                                      timeFilter.Property,
                                      timeFilter.Operator,
                                      timeFilter.Value.Value.ToUniversalTime().ToString("o"));
                 appendAnd = true;
             }
+
+            foreach (var textFilter in textFilters)
+            {
+                if (string.IsNullOrWhiteSpace(textFilter.Property) ||
+                    string.IsNullOrWhiteSpace(textFilter.Operator) ||
+                    string.IsNullOrEmpty(textFilter.Value))
+                    continue;
+
+                if (appendAnd)
+                    builder.Append(AndOperator);
+                
+                builder.AppendLine("Text: ");
+
+                builder.AppendFormat(FilterFormat,
+                                     textFilter.Property,
+                                     textFilter.Operator,
+                                     textFilter.Value);
+                appendAnd = true;
+            }
+
             txtFilterExpression.TextChanged -= txtFilterExpression_TextChanged;
             txtFilterExpression.Text = builder.ToString();
             FilterExpression = txtFilterExpression.Text;
@@ -476,6 +562,11 @@ namespace ServiceBusExplorer.Forms
         private void timeFilterDataGridView_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             timeFilterDataGridView.NotifyCurrentCellDirty(true);
+        }
+
+        private void textFilterDataGridView_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            textFilterDataGridView.NotifyCurrentCellDirty(true);
         }
 
         private void grouperFilter_CustomPaint(PaintEventArgs e)

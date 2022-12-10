@@ -2990,12 +2990,19 @@ namespace ServiceBusExplorer.Forms
                         serviceBusTreeView.SelectedNode.Text == FilteredSubscriptionEntities)
                     {
                         var wrapper = serviceBusTreeView.SelectedNode.Tag as SubscriptionWrapper;
-                        if (wrapper == null)
-                        {
+                        string timeFilter = string.Empty;
+
+                        if (wrapper == null)                        
                             return;
-                        }
-                        var subscriptions = serviceBusHelper.GetSubscriptions(wrapper.TopicDescription, wrapper.Filter);
+                        
+                        if (wrapper.Filter.Contains("Text:"))
+                            timeFilter = wrapper.Filter.Substring("Time:".Length, wrapper.Filter.Length - wrapper.Filter.IndexOf("Text:"));//TODO: move to a constant class
+                        else if (wrapper.Filter.Contains("Time:"))
+                            timeFilter = wrapper.Filter.Substring("Time:".Length, wrapper.Filter.Length - "Time:".Length);//TODO: move to a constant class
+                                               
+                        var subscriptions = serviceBusHelper.GetSubscriptions(wrapper.TopicDescription, timeFilter);
                         var subscriptionDescriptions = subscriptions as IList<SubscriptionDescription> ?? subscriptions.ToList();
+                        
                         if ((subscriptionDescriptions.Any()) ||
                             !string.IsNullOrWhiteSpace(wrapper.Filter))
                         {
@@ -3031,6 +3038,7 @@ namespace ServiceBusExplorer.Forms
                                 }
                             }
                         }
+
                         return;
                     }
                     // Rules Node
@@ -4763,7 +4771,7 @@ namespace ServiceBusExplorer.Forms
         /// </summary>
         /// <param name="wrapper">Wrapper to </param>
         /// <param name="duplicateCurrentSubscription">If set the rendered subscription panel will be a "Duplicate" form.</param>
-        private void ShowSubscription(SubscriptionWrapper wrapper, bool duplicateCurrentSubscription = false) 
+        private void ShowSubscription(SubscriptionWrapper wrapper, bool duplicateCurrentSubscription = false)
         {
             HandleSubscriptionControl subscriptionControl = null;
 
@@ -6725,13 +6733,13 @@ namespace ServiceBusExplorer.Forms
                     || (treeNode.Tag is UrlSegmentWrapper && (treeNode.Tag as UrlSegmentWrapper).EntityType == EntityType.Topic))
                 {
                     deleteConfirmation = $"Are you sure you want to purge {strategyDescription} from all topics{(treeNode.Tag is UrlSegmentWrapper ? " in this folder" : string.Empty)}?";
-                    
+
                     List<TreeNode> topicTreeNodes = new List<TreeNode>();
                     this.FindTopicsNodesRecursive(topicTreeNodes, treeNode);
 
                     subscriptions.AddRange(topicTreeNodes.SelectMany(subscriptionsExtractor));
                 }
-                else if (treeNode == FindNode(Constants.QueueEntities, rootNode) 
+                else if (treeNode == FindNode(Constants.QueueEntities, rootNode)
                     || (treeNode.Tag is UrlSegmentWrapper && (treeNode.Tag as UrlSegmentWrapper).EntityType == EntityType.Queue))
                 {
                     deleteConfirmation = $"Are you sure you want to purge {strategyDescription} from all queues{(treeNode.Tag is UrlSegmentWrapper ? " in this folder" : string.Empty)}?";
@@ -6797,7 +6805,7 @@ namespace ServiceBusExplorer.Forms
                     this.FindTopicsNodesRecursive(topicNodes, child);
             }
         }
-        
+
         private void duplicateSubscriptionMenuItem_Click(object sender, EventArgs e)
         {
             var subscriptionWrapper = serviceBusTreeView.SelectedNode.Tag as SubscriptionWrapper;
